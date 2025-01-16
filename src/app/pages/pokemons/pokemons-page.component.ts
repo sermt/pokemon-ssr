@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  effect,
   inject,
   OnInit,
   signal,
@@ -11,22 +12,22 @@ import { PokemonListComponent } from './components/pokemon-list/pokemon-list.com
 import { SkeletonLoaderComponent } from './components/skeleton-loader/skeleton-loader.component';
 import { PokemonsService } from './services/pokemon.service';
 import { SimplePokemon } from './interfaces';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { map, tap } from 'rxjs';
 import { Title } from '@angular/platform-browser';
 
 @Component({
   selector: 'app-pokemons-page',
-  imports: [PokemonListComponent, SkeletonLoaderComponent],
+  imports: [PokemonListComponent, SkeletonLoaderComponent, RouterLink],
   templateUrl: './pokemons-page.component.html',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export default class PokemonsPageComponent implements OnInit {
+export default class PokemonsPageComponent {
   private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
-  private readonly currentPage = toSignal<number>(
-    this.route.queryParamMap.pipe(
-      map((params) => params.get('page') ?? '1'),
+  public reloadPage = effect(() => this.loadPokemons(this.currentPage()));
+  readonly currentPage = toSignal<number>(
+    this.route.params.pipe(
+      map((params) => params['page'] ?? '1'),
       map((page) => (isNaN(+page) ? 1 : +page)),
       map((page) => Math.max(1, page))
     )
@@ -37,19 +38,12 @@ export default class PokemonsPageComponent implements OnInit {
 
   pokemons = signal<SimplePokemon[]>([]);
 
-  ngOnInit(): void {
-    this.loadPokemons();
-  }
-
   loadPokemons(page = 0): void {
-    const pageToLoad = this.currentPage()! + page;
+    const pageToLoad = this.currentPage()! + page-1;
     this.pokemonService
       .loadPage(pageToLoad)
       .pipe(
         takeUntilDestroyed(this.destroyRef),
-        tap(() => {
-          this.router.navigate([], { queryParams: { page: pageToLoad } });
-        }),
         tap(() => {
           this.title.setTitle(`Pokemons - Page ${pageToLoad}`);
         })
